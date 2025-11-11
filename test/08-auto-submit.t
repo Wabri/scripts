@@ -53,6 +53,8 @@ is "$rc" 0 "returns 0 without existing SRs"
 like "$got" "info.*has_pending_submission" "no output"
 
 submit_target=openSUSE:Leap:16.0
+throttle_days=3 # expected to be ignored for openSUSE:Leap:16.0
+throttle_days_leap_16=1
 try has_pending_submission "$package" "$submit_target"
 is "$rc" 0 "returns 0 without existing PRs"
 like "$got" "info.*has_pending_submission\\($package, $submit_target\\)$" "no output (no PR)"
@@ -62,7 +64,7 @@ try has_pending_submission "$package" "$submit_target"
 is "$rc" 0 "returns 0 with existing PR older than throttle config of $throttle_days days"
 like "$got" "info.*has_pending_submission\\($package, $submit_target\\)$" "no output (old PR)"
 
-throttle_days=3
+throttle_days_leap_16=3
 try has_pending_submission "$package" "$submit_target"
 is "$rc" 1 "returns 1 with existing PR recent than throttle config of $throttle_days days"
 like "$got" "info.*Skipping submission.*pending PR.*https://foo/bar" "expected output (recent PR)"
