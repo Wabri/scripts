@@ -285,19 +285,20 @@ has_pending_submission() {
 
     local package=$1 target=$2
     local git_branch=${git_branches[$target]:-}
-    local requestlist is_older_than_throttle_days
+    local requestlist recent_pr_url
     log-info "has_pending_submission($package, $target)"
 
     # throttle number of submissions to allow only one PR or SR within a certain number of days
     if [[ $git_branch ]]; then
         # check for PR on Gitea
-        is_older_than_throttle_days=$($git_obs -q api "repos/pool/$package/pulls?state=open&sort=recentupdate" \
-            | jq --arg days "$throttle_days" \
+        recent_pr_url=$($git_obs -q api "repos/pool/$package/pulls?state=open&sort=recentupdate" \
+            | jq --raw-output \
+                --arg days "$throttle_days" \
                 --arg target "$git_branch" \
                 --arg login "$git_user" \
-                '[.[] | select(.base.ref == $target) | select(.user.login == $login) | select(.updated_at | strptime("%Y-%m-%dT%H:%M:%S%z") | mktime > (now - ($days | tonumber) * 86400))] | length > 0')
-        if [[ $is_older_than_throttle_days != false ]]; then
-            log-info "Skipping submission, there is still a pending PR by $git_user targeting $git_branch younger than $throttle_days days."
+                '[.[] | select(.base.ref == $target) | select(.user.login == $login) | select(.updated_at | strptime("%Y-%m-%dT%H:%M:%S%z") | mktime > (now - ($days | tonumber) * 86400)) | .html_url] | first')
+        if [[ $recent_pr_url != null ]]; then
+            log-info "Skipping submission, there is the still pending PR '$recent_pr_url' by $git_user targeting $git_branch younger than $throttle_days days."
             return 1
         fi
     else
@@ -305,7 +306,7 @@ has_pending_submission() {
         # note: Avoid using `grep --quiet` here to keep consuming input so osc does not run into "BrokenPipeError: [Errno 32] Broken pipe".
         requestlist=$($osc request list --project "$target" --package "$package" --type submit --state new,review --mine --days "$throttle_days")
         if echo "$requestlist" | grep 'Created by' > /dev/null; then
-            log-info "Skipping submission, there is still a pending SR younger than $throttle_days days."
+            log-info "Skipping submission, there is still a pending SR for package $package in project $target younger than $throttle_days days."
             echo "$requestlist"
             return 1
         fi

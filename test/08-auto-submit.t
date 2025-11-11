@@ -25,7 +25,7 @@ mock_git_obs() {
 
 _pr_list() {
     local ref=$1
-    echo "[{\"updated_at\":\"$two_days_ago\", \"user\": {\"login\": \"$git_user\"}, \"base\": {\"ref\": \"$ref\"}}]"
+    echo "[{\"updated_at\":\"$two_days_ago\", \"html_url\": \"https://foo/bar\", \"user\": {\"login\": \"$git_user\"}, \"base\": {\"ref\": \"$ref\"}}]"
 }
 
 two_days_ago=$(date --iso-8601=seconds --date='-2 day')
@@ -55,14 +55,14 @@ like "$got" "info.*has_pending_submission" "no output"
 submit_target=openSUSE:Leap:16.0
 try has_pending_submission "$package" "$submit_target"
 is "$rc" 0 "returns 0 without existing PRs"
-like "$got" "info.*has_pending_submission" "no output (no PR)"
+like "$got" "info.*has_pending_submission\\($package, $submit_target\\)$" "no output (no PR)"
 
 package=openQA
 try has_pending_submission "$package" "$submit_target"
-is "$rc" 0 "returns 0 with existing but too old PR"
-like "$got" "info.*has_pending_submission" "no output (old PR)"
+is "$rc" 0 "returns 0 with existing PR older than throttle config of $throttle_days days"
+like "$got" "info.*has_pending_submission\\($package, $submit_target\\)$" "no output (old PR)"
 
 throttle_days=3
 try has_pending_submission "$package" "$submit_target"
-is "$rc" 1 "returns 1 with existing and recent PR"
-like "$got" "info.*Skipping submission.*pending PR" "expected output (recent PR)"
+is "$rc" 1 "returns 1 with existing PR recent than throttle config of $throttle_days days"
+like "$got" "info.*Skipping submission.*pending PR.*https://foo/bar" "expected output (recent PR)"
