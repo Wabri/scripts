@@ -291,7 +291,7 @@ has_pending_submission() {
     # throttle number of submissions to allow only one PR or SR within a certain number of days
     if [[ $git_branch ]]; then
         # check for PR on Gitea
-        recent_pr_url=$($git_obs -q api "repos/pool/$package/pulls?state=open&sort=recentupdate" \
+        recent_pr_url=$($git_obs -q api "repos/pool/$package/pulls?state=open&sort=recentupdate" 2> /dev/null \
             | jq --raw-output \
                 --arg days "$throttle_days" \
                 --arg target "$git_branch" \
