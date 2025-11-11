@@ -13,6 +13,7 @@ dry_run="${dry_run:-"0"}"
 osc_poll_interval="${osc_poll_interval:-2}"
 osc_build_start_poll_tries="${osc_build_start_poll_tries:-30}"
 throttle_days=${throttle_days:-2}
+git_user=${git_user:-os-autoinst-obs-workflow}
 XMLSTARLET=$(command -v xmlstarlet || true)
 [[ -n $XMLSTARLET ]] || (echo "Need xmlstarlet" >&2 && exit 1)
 
@@ -175,6 +176,7 @@ update_package() {
     wait_for_package_build "$submit_target"
     for target in "${targets[@]}"; do
         [[ $target == none ]] && continue # allow specifying submit_target_extra=none for easier testing
+        has_pending_submission "$package" "$target" || continue
         log-info "## Ready to submit $package to $target ##"
         local submit_cmd=make_obs_submit_request
         local args=("$package" "$target" "$version")
@@ -279,16 +281,35 @@ get_project_packages() {
 }
 
 has_pending_submission() {
-    log-info "has_pending_submission()"
-    local requestlist
-    # throttle number of submissions to allow only one SR within a certain number of days
-    # note: Avoid using `grep --quiet` here to keep consuming input so osc does not run into "BrokenPipeError: [Errno 32] Broken pipe".
     [[ $throttle_days == 0 ]] && return 0
-    requestlist=$($osc request list --project "$dst_project" --type submit --state new,review --mine --days "$throttle_days")
-    if echo "$requestlist" | grep 'Created by' > /dev/null; then
-        log-info "Skipping submission, there is still a pending SR younger than $throttle_days days."
-        echo "$requestlist"
-        return 1
+
+    local package=$1 target=$2
+    local git_branch=${git_branches[$target]:-}
+    local requestlist recent_pr_url
+    log-info "has_pending_submission($package, $target)"
+
+    # throttle number of submissions to allow only one PR or SR within a certain number of days
+    if [[ $git_branch ]]; then
+        # check for PR on Gitea
+        recent_pr_url=$($git_obs -q api "repos/pool/$package/pulls?state=open&sort=recentupdate" 2> /dev/null \
+            | jq --raw-output \
+                --arg days "$throttle_days" \
+                --arg target "$git_branch" \
+                --arg login "$git_user" \
+                '[.[] | select(.base.ref == $target) | select(.user.login == $login) | select(.updated_at | strptime("%Y-%m-%dT%H:%M:%S%z") | mktime > (now - ($days | tonumber) * 86400)) | .html_url] | first')
+        if [[ $recent_pr_url != null ]]; then
+            log-info "Skipping submission, there is the still pending PR '$recent_pr_url' by $git_user targeting $git_branch younger than $throttle_days days."
+            return 1
+        fi
+    else
+        # check for SR on OBS
+        # note: Avoid using `grep --quiet` here to keep consuming input so osc does not run into "BrokenPipeError: [Errno 32] Broken pipe".
+        requestlist=$($osc request list --project "$target" --package "$package" --type submit --state new,review --mine --days "$throttle_days")
+        if echo "$requestlist" | grep 'Created by' > /dev/null; then
+            log-info "Skipping submission, there is still a pending SR for package $package in project $target younger than $throttle_days days."
+            echo "$requestlist"
+            return 1
+        fi
     fi
     return 0
 }
@@ -306,7 +327,6 @@ submit() {
         cat job_post_skip_submission
         return 0
     fi
-    has_pending_submission || return 0
     (
         cd "$TMPDIR"
         rc=0
