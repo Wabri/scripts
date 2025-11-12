@@ -312,7 +312,7 @@ has_pending_submission() {
         # check for SR on OBS
         # note: Avoid using `grep --quiet` here to keep consuming input so osc does not run into "BrokenPipeError: [Errno 32] Broken pipe".
         requestlist=$($osc request list --project "$dst_project" --package "$package" --type submit,maintenance_incident --state new,review --days "$throttle_days_value")
-        if echo "$requestlist" | grep --perl-regexp "(-> $target|release in $target)" > /dev/null; then
+        if echo "$requestlist" | grep --fixed-strings "$target" > /dev/null; then
             log-info "Skipping submission, there is still a pending SR for package $package in project $target younger than $throttle_days_value days."
             echo "$requestlist"
             return 1
