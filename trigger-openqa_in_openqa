@@ -112,7 +112,8 @@ trigger() {
         ARGS+=('TEST=openqa_install+publish' "FULL_OPENSUSE_TEST=1")
     fi
 
-    ${client_prefix} "${openqa_cli}" \
+    # shellcheck disable=SC2086
+    ${client_prefix} ${openqa_cli} \
         schedule --host "${target_host_proto}://${target_host}" \
         --param-file SCENARIO_DEFINITIONS_YAML=/var/tmp/sd.yaml \
         VERSION=Tumbleweed \
