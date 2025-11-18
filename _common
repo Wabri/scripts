@@ -297,6 +297,7 @@ find_latest_published_tumbleweed_image() {
         fi
         image=$(get_image "$assetname")
 
+        [[ $image == "" ]] && image=null # the result can be empty for other reasons
         # This published build has an image available
         [[ "$image" != null ]] && break
         # Published but no image available, we'll try and continue
