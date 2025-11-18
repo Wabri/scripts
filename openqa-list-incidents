@@ -176,7 +176,7 @@ def get_title(url: str) -> str:
         return ""
     for issue in issues:
         if issue["id"] == issue_id:
-            return issue["summary"]
+            return issue.get("summary", "unknown")
     return ""
 
 
